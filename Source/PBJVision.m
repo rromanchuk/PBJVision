@@ -489,7 +489,6 @@ typedef void (^PBJVisionBlock)();
     }
 
     _captureSession = [[AVCaptureSession alloc] init];
-    
     _captureDeviceFront = [PBJVisionUtilities captureDeviceForPosition:AVCaptureDevicePositionFront];
     _captureDeviceBack = [PBJVisionUtilities captureDeviceForPosition:AVCaptureDevicePositionBack];
 
@@ -715,7 +714,7 @@ typedef void (^PBJVisionBlock)();
             
         }
         
-        [_captureSession removeOutput:_captureOutputVideo];
+       // [_captureSession removeOutput:_captureOutputVideo];
         [_captureSession removeOutput:_captureOutputPhoto];
         
         switch (_cameraMode) {
@@ -1124,6 +1123,8 @@ typedef void (^PBJVisionBlock)();
 - (void)_willCapturePhoto
 {
     DLog(@"will capture photo");
+    
+    
     if ([_delegate respondsToSelector:@selector(visionWillCapturePhoto:)])
         [_delegate visionWillCapturePhoto:self];
     
@@ -1209,6 +1210,15 @@ typedef void (^PBJVisionBlock)();
 }
 
 - (void)capturePreviewPhoto {
+    NSLog(@"capture preview photo");
+    
+    if (self.cameraMode == PBJCameraModePhoto) {
+        if ([_captureSession canAddOutput:_captureOutputVideo]) {
+            [_captureSession addOutput:_captureOutputVideo];
+        }
+        [_captureOutputVideo setSampleBufferDelegate:self queue:_captureVideoDispatchQueue];
+    }
+    
     [_captureOutputVideo setVideoSettings:@{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA) }];
     _flags.previewPhotoRequested = YES;
 }
@@ -1700,9 +1710,16 @@ typedef void (^PBJVisionBlock)();
     if (_flags.previewPhotoRequested) {
         _flags.previewPhotoRequested = NO;
         CGImageRef imageRef = [self cgImageFromSampleBuffer:sampleBuffer];
-        if ([_delegate respondsToSelector:@selector(vision:capturedLivePhotoFromBuffer:)]) {
-            [_delegate vision:self capturedLivePhotoFromBuffer:imageRef];
+        [self _executeBlockOnMainQueue:^{
+            if ([_delegate respondsToSelector:@selector(vision:capturedLivePhotoFromBuffer:)]) {
+                [_delegate vision:self capturedLivePhotoFromBuffer:imageRef];
+            }
+        }];
+        
+        if (self.cameraMode == PBJCameraModePhoto) {
+            [_captureSession removeOutput:_captureOutputVideo];
         }
+
         [self _setupVideoSettings];
     }
     

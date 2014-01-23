@@ -283,7 +283,7 @@
         _focusButton.hidden = YES;
     }
     
-    [vision setCameraMode:PBJCameraModeVideo];
+    [vision setCameraMode:PBJCameraModePhoto];
     [vision setCameraOrientation:PBJCameraOrientationPortrait];
     [vision setFocusMode:PBJFocusModeContinuousAutoFocus];
     [vision setOutputFormat:PBJOutputFormatSquare];
