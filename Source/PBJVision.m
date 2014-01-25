@@ -409,7 +409,8 @@ enum
         CGFloat bytesPerSecond = 437500;
         _videoAssetBitRate = bytesPerSecond * 8;
         _videoAssetFrameInterval = 30;
-
+        
+        //AVCaptureSessionPreset320x240
         _captureSessionPreset = AVCaptureSessionPreset640x480;
 
         // default flags
@@ -540,7 +541,7 @@ typedef void (^PBJVisionBlock)();
     // KVO is only used to monitor focus and capture events
     [_captureOutputPhoto addObserver:self forKeyPath:@"capturingStillImage" options:NSKeyValueObservingOptionNew context:(__bridge void *)(PBJVisionCaptureStillImageIsCapturingStillImageObserverContext)];
     
-    DLog(@"camera setup");
+    NSLog(@"camera setup");
 }
 
 - (void)_destroyCamera
@@ -620,9 +621,13 @@ typedef void (^PBJVisionBlock)();
     NSDictionary *videoSettings = nil;
     
     if (supportsFullRangeYUV) {
-        videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) };
+        //videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) };
+        videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA) };
+
     } else if (supportsVideoRangeYUV) {
-        videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) };
+        //videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) };
+        videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA) };
+
     }
     
     if (videoSettings)
@@ -630,10 +635,20 @@ typedef void (^PBJVisionBlock)();
 
 }
 
+- (void)setupOutputForPhoto {
+    [self _setupVideoSettings];
+    if ([_captureSession canAddOutput:_captureOutputVideo]) {
+        [_captureSession addOutput:_captureOutputVideo];
+    }
+    
+    [_captureOutputVideo setAlwaysDiscardsLateVideoFrames:YES];
+    [_captureOutputVideo setSampleBufferDelegate:self queue:_captureVideoDispatchQueue];
+}
+
 - (void)_setupSession
 {
     if (!_captureSession) {
-        DLog(@"error, no session running to setup");
+        NSLog(@"error, no session running to setup");
         return;
     }
     
@@ -645,7 +660,7 @@ typedef void (^PBJVisionBlock)();
                             ((_currentOutput == _captureOutputPhoto) && (_cameraMode != PBJCameraModePhoto)) ||
                             ((_currentOutput == _captureOutputVideo) && (_cameraMode != PBJCameraModeVideo));
     
-    DLog(@"switchDevice %d switchMode %d", shouldSwitchDevice, shouldSwitchMode);
+    NSLog(@"switchDevice %d switchMode %d", shouldSwitchDevice, shouldSwitchMode);
 
     if (!shouldSwitchDevice && !shouldSwitchMode)
         return;
@@ -706,7 +721,7 @@ typedef void (^PBJVisionBlock)();
             _captureDeviceAudio = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
             _captureDeviceInputAudio = [AVCaptureDeviceInput deviceInputWithDevice:_captureDeviceAudio error:&error];
             if (error) {
-                DLog(@"error setting up audio input (%@)", error);
+                NSLog(@"error setting up audio input (%@)", error);
             }
 
             _captureOutputAudio = [[AVCaptureAudioDataOutput alloc] init];
@@ -714,7 +729,7 @@ typedef void (^PBJVisionBlock)();
             
         }
         
-       // [_captureSession removeOutput:_captureOutputVideo];
+        [_captureSession removeOutput:_captureOutputVideo];
         [_captureSession removeOutput:_captureOutputPhoto];
         
         switch (_cameraMode) {
@@ -835,7 +850,7 @@ typedef void (^PBJVisionBlock)();
             [newCaptureDevice unlockForConfiguration];
         
         } else if (error) {
-            DLog(@"error locking device for photo device configuration (%@)", error);
+            NSLog(@"error locking device for photo device configuration (%@)", error);
         }
             
     }
@@ -864,7 +879,7 @@ typedef void (^PBJVisionBlock)();
 
     [_captureSession commitConfiguration];
     
-    DLog(@"capture session setup");
+    NSLog(@"capture session setup");
 }
 
 #pragma mark - preview
@@ -884,13 +899,13 @@ typedef void (^PBJVisionBlock)();
         
         if (![_captureSession isRunning]) {
             [_captureSession startRunning];
-            
+            [self setupOutputForPhoto];
             [self _enqueueBlockOnMainQueue:^{
                 if ([_delegate respondsToSelector:@selector(visionSessionDidStart:)]) {
                     [_delegate visionSessionDidStart:self];
                 }
             }];
-            DLog(@"capture session running");
+            NSLog(@"capture session running");
         }
         _flags.previewRunning = YES;
     }];
@@ -1211,15 +1226,6 @@ typedef void (^PBJVisionBlock)();
 
 - (void)capturePreviewPhoto {
     NSLog(@"capture preview photo");
-    
-    if (self.cameraMode == PBJCameraModePhoto) {
-        if ([_captureSession canAddOutput:_captureOutputVideo]) {
-            [_captureSession addOutput:_captureOutputVideo];
-        }
-        [_captureOutputVideo setSampleBufferDelegate:self queue:_captureVideoDispatchQueue];
-    }
-    
-    [_captureOutputVideo setVideoSettings:@{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA) }];
     _flags.previewPhotoRequested = YES;
 }
 
@@ -1489,8 +1495,8 @@ typedef void (^PBJVisionBlock)();
 
 	NSDictionary *videoSettings = @{ AVVideoCodecKey : AVVideoCodecH264,
                                      AVVideoScalingModeKey : AVVideoScalingModeResizeAspectFill,
-                                     AVVideoWidthKey : @(videoDimensions.width),
-                                     AVVideoHeightKey : @(videoDimensions.height),
+                                     AVVideoWidthKey : @(320),
+                                     AVVideoHeightKey : @(240),
                                      AVVideoCompressionPropertiesKey : compressionSettings };
     
 	if ([_assetWriter canApplyOutputSettings:videoSettings forMediaType:AVMediaTypeVideo]) {
@@ -1709,18 +1715,34 @@ typedef void (^PBJVisionBlock)();
 {
     if (_flags.previewPhotoRequested) {
         _flags.previewPhotoRequested = NO;
-        CGImageRef imageRef = [self cgImageFromSampleBuffer:sampleBuffer];
+        
+        CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+        CVPixelBufferLockBaseAddress(imageBuffer,0);
+        uint8_t *baseAddress = (uint8_t *)CVPixelBufferGetBaseAddress(imageBuffer);
+        size_t bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer);
+        size_t width = CVPixelBufferGetWidth(imageBuffer);
+        size_t height = CVPixelBufferGetHeight(imageBuffer);
+        
+        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+        CGContextRef newContext = CGBitmapContextCreate(baseAddress, width, height, 8, bytesPerRow, colorSpace, kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
+        CGImageRef newImage = CGBitmapContextCreateImage(newContext);
+        
+        CGContextRelease(newContext);
+        CGColorSpaceRelease(colorSpace);
+        
+        UIImage *image = [UIImage imageWithCGImage:newImage scale:1.0f orientation:UIImageOrientationDownMirrored];
+        
+        CGImageRelease(newImage);
+        
+        CVPixelBufferUnlockBaseAddress(imageBuffer,0);
+        
+        
         [self _executeBlockOnMainQueue:^{
             if ([_delegate respondsToSelector:@selector(vision:capturedLivePhotoFromBuffer:)]) {
-                [_delegate vision:self capturedLivePhotoFromBuffer:imageRef];
+                [_delegate vision:self capturedLivePhotoFromBuffer:image];
             }
         }];
-        
-        if (self.cameraMode == PBJCameraModePhoto) {
-            [_captureSession removeOutput:_captureOutputVideo];
-        }
-
-        [self _setupVideoSettings];
+        return;
     }
     
     CMFormatDescriptionRef formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer);
@@ -1870,25 +1892,6 @@ typedef void (^PBJVisionBlock)();
     }];
 
 }
-
-- (CGImageRef)cgImageFromSampleBuffer:(CMSampleBufferRef)sampleBuffer {
-    CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-    CVPixelBufferLockBaseAddress(imageBuffer,0);
-    uint8_t *baseAddress = (uint8_t *)CVPixelBufferGetBaseAddress(imageBuffer);
-    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer);
-    size_t width = CVPixelBufferGetWidth(imageBuffer);
-    size_t height = CVPixelBufferGetHeight(imageBuffer);
-    
-    
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGContextRef context = CGBitmapContextCreate(baseAddress, width, height, 8, bytesPerRow, colorSpace, kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
-    CGImageRef newImage = CGBitmapContextCreateImage(context);
-    CVPixelBufferUnlockBaseAddress(imageBuffer,0);
-    CGContextRelease(context);
-    CGColorSpaceRelease(colorSpace);
-    return newImage;
-}
-
 
 #pragma mark - App NSNotifications
 

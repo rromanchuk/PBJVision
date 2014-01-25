@@ -16,6 +16,7 @@
 #import <AssetsLibrary/AssetsLibrary.h>
 #import <GLKit/GLKit.h>
 
+
 @interface ExtendedHitButton: UIButton
 
 + (instancetype) extendedHitButton;
@@ -97,6 +98,7 @@
 
     [[UIApplication sharedApplication] setStatusBarHidden:YES withAnimation:UIStatusBarAnimationSlide];
     _assetLibrary = [[ALAssetsLibrary alloc] init];
+    
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -338,6 +340,7 @@
 //    if (_recording)
 //        _effectsViewController.view.hidden = !_onionButton.selected;
     [[PBJVision sharedInstance] capturePreviewPhoto];
+    //[[PBJVision sharedInstance] capturePhoto];
 }
 
 - (void)_handleDoneButton:(UIButton *)button
@@ -407,8 +410,7 @@
 
 #pragma mark - PBJVisionDelegate
 
--(void)vision:(PBJVision *)vision capturedLivePhotoFromBuffer:(CGImageRef)imageRef {
-    UIImage *image = [UIImage imageWithCGImage:imageRef];
+-(void)vision:(PBJVision *)vision capturedLivePhotoFromBuffer:(UIImage *)image {
     NSLog(@"image is %@", image);
 }
 
