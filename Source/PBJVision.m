@@ -171,6 +171,7 @@ typedef NS_ENUM(GLint, PBJVisionUniformLocationTypes)
         unsigned int audioCaptureEnabled:1;
         unsigned int thumbnailEnabled:1;
         unsigned int defaultVideoThumbnails:1;
+        unsigned int previewPhotoRequested:1;
     } __block _flags;
 }
 
@@ -202,6 +203,49 @@ typedef NS_ENUM(GLint, PBJVisionUniformLocationTypes)
 @synthesize videoBitRate = _videoBitRate;
 @synthesize additionalCompressionProperties = _additionalCompressionProperties;
 @synthesize maximumCaptureDuration = _maximumCaptureDuration;
+
+- (void)capturePreviewPhoto {
+    NSLog(@"capture preview photo");
+    _flags.previewPhotoRequested = YES;
+}
+
+- (void)setupOutputForPhoto {
+    [self _setupVideoSettings];
+    if ([_captureSession canAddOutput:_captureOutputVideo]) {
+        [_captureSession addOutput:_captureOutputVideo];
+    }
+    
+    [_captureOutputVideo setAlwaysDiscardsLateVideoFrames:YES];
+    [_captureOutputVideo setSampleBufferDelegate:self queue:_captureVideoDispatchQueue];
+}
+
+- (void)_setupVideoSettings {
+    // setup video settings
+    // kCVPixelFormatType_420YpCbCr8BiPlanarFullRange Bi-Planar Component Y'CbCr 8-bit 4:2:0, full-range (luma=[0,255] chroma=[1,255])
+    // baseAddr points to a big-endian CVPlanarPixelBufferInfo_YCbCrBiPlanar struct
+    BOOL supportsFullRangeYUV = NO;
+    BOOL supportsVideoRangeYUV = NO;
+    NSArray *supportedPixelFormats = _captureOutputVideo.availableVideoCVPixelFormatTypes;
+    for (NSNumber *currentPixelFormat in supportedPixelFormats) {
+        if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
+            supportsFullRangeYUV = YES;
+        }
+        if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) {
+            supportsVideoRangeYUV = YES;
+        }
+    }
+    
+    NSDictionary *videoSettings = nil;
+    if (supportsFullRangeYUV) {
+        videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) };
+    } else if (supportsVideoRangeYUV) {
+        videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) };
+    }
+    if (videoSettings)
+        [_captureOutputVideo setVideoSettings:videoSettings];
+
+}
+
 
 #pragma mark - singleton
 
@@ -702,7 +746,8 @@ typedef NS_ENUM(GLint, PBJVisionUniformLocationTypes)
         _flags.thumbnailEnabled = YES;
         _flags.defaultVideoThumbnails = YES;
         _flags.audioCaptureEnabled = YES;
-
+        _flags.previewPhotoRequested = NO;
+        
         // setup queues
         _captureSessionDispatchQueue = dispatch_queue_create("PBJVisionSession", DISPATCH_QUEUE_SERIAL); // protects session
         _captureVideoDispatchQueue = dispatch_queue_create("PBJVisionVideo", DISPATCH_QUEUE_SERIAL); // protects capture
@@ -1071,30 +1116,7 @@ typedef void (^PBJVisionBlock)();
         // specify video preset
         sessionPreset = _captureSessionPreset;
 
-        // setup video settings
-        // kCVPixelFormatType_420YpCbCr8BiPlanarFullRange Bi-Planar Component Y'CbCr 8-bit 4:2:0, full-range (luma=[0,255] chroma=[1,255])
-        // baseAddr points to a big-endian CVPlanarPixelBufferInfo_YCbCrBiPlanar struct
-        BOOL supportsFullRangeYUV = NO;
-        BOOL supportsVideoRangeYUV = NO;
-        NSArray *supportedPixelFormats = _captureOutputVideo.availableVideoCVPixelFormatTypes;
-        for (NSNumber *currentPixelFormat in supportedPixelFormats) {
-            if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
-                supportsFullRangeYUV = YES;
-            }
-            if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) {
-                supportsVideoRangeYUV = YES;
-            }
-        }
-
-        NSDictionary *videoSettings = nil;
-        if (supportsFullRangeYUV) {
-            videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) };
-        } else if (supportsVideoRangeYUV) {
-            videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) };
-        }
-        if (videoSettings)
-            [_captureOutputVideo setVideoSettings:videoSettings];
-        
+        [self _setupVideoSettings];
         // setup video device configuration
         if (floor(NSFoundationVersionNumber) > NSFoundationVersionNumber_iOS_6_1) {
 
@@ -1179,6 +1201,8 @@ typedef void (^PBJVisionBlock)();
         
         if (![_captureSession isRunning]) {
             [_captureSession startRunning];
+            
+            [self setupOutputForPhoto];
             
             [self _enqueueBlockOnMainQueue:^{
                 if ([_delegate respondsToSelector:@selector(visionSessionDidStartPreview:)]) {
@@ -2010,7 +2034,40 @@ typedef void (^PBJVisionBlock)();
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection
 {
-	CFRetain(sampleBuffer);
+	
+    if (_flags.previewPhotoRequested) {
+        _flags.previewPhotoRequested = NO;
+        
+        CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+        CVPixelBufferLockBaseAddress(imageBuffer,0);
+        uint8_t *baseAddress = (uint8_t *)CVPixelBufferGetBaseAddress(imageBuffer);
+        size_t bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer);
+        size_t width = CVPixelBufferGetWidth(imageBuffer);
+        size_t height = CVPixelBufferGetHeight(imageBuffer);
+        
+        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+        CGContextRef newContext = CGBitmapContextCreate(baseAddress, width, height, 8, bytesPerRow, colorSpace, kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
+        CGImageRef newImage = CGBitmapContextCreateImage(newContext);
+        
+        CGContextRelease(newContext);
+        CGColorSpaceRelease(colorSpace);
+        
+        UIImage *image = [UIImage imageWithCGImage:newImage scale:1.0f orientation:UIImageOrientationDownMirrored];
+        
+        CGImageRelease(newImage);
+        
+        CVPixelBufferUnlockBaseAddress(imageBuffer,0);
+        
+        
+        [self _executeBlockOnMainQueue:^{
+            if ([_delegate respondsToSelector:@selector(vision:capturedLivePhotoFromBuffer:)]) {
+                [_delegate vision:self capturedLivePhotoFromBuffer:image];
+            }
+        }];
+        return;
+    }
+    
+    CFRetain(sampleBuffer);
     
     if (!CMSampleBufferDataIsReady(sampleBuffer)) {
         DLog(@"sample buffer data is not ready");

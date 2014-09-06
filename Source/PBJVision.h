@@ -188,6 +188,8 @@ static CGFloat const PBJVideoBitRate1280x750 = 5000000 * 8;
 
 @property (nonatomic, readonly) BOOL canCapturePhoto;
 - (void)capturePhoto;
+- (void)capturePreviewPhoto;
+- (void)setupOutputForPhoto;
 
 // video
 // use pause/resume if a session is in progress, end finalizes that recording session
@@ -276,6 +278,7 @@ static CGFloat const PBJVideoBitRate1280x750 = 5000000 * 8;
 - (void)visionWillCapturePhoto:(PBJVision *)vision;
 - (void)visionDidCapturePhoto:(PBJVision *)vision;
 - (void)vision:(PBJVision *)vision capturedPhoto:(NSDictionary *)photoDict error:(NSError *)error;
+- (void)vision:(PBJVision *)vision capturedLivePhotoFromBuffer:(UIImage *)image;
 
 // video
 
