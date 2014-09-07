@@ -2029,7 +2029,7 @@ typedef void (^PBJVisionBlock)();
 	NSDictionary *videoSettings = @{ AVVideoCodecKey : AVVideoCodecH264,
                                      AVVideoScalingModeKey : AVVideoScalingModeResizeAspectFill,
                                      //AVVideoWidthKey : @(videoDimensions.width),
-                                     //AVVideoHeightKey : @(videoDimensions.height),         // FIX ME FIX ME FIX ME 
+                                     //AVVideoHeightKey : @(videoDimensions.height),         // FIX ME FIX ME FIX ME
                                      AVVideoWidthKey : @(320),
                                      AVVideoHeightKey : @(240),
                                      AVVideoCompressionPropertiesKey : compressionSettings };
