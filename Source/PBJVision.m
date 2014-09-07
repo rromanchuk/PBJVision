@@ -2028,8 +2028,10 @@ typedef void (^PBJVisionBlock)();
     
 	NSDictionary *videoSettings = @{ AVVideoCodecKey : AVVideoCodecH264,
                                      AVVideoScalingModeKey : AVVideoScalingModeResizeAspectFill,
-                                     AVVideoWidthKey : @(videoDimensions.width),
-                                     AVVideoHeightKey : @(videoDimensions.height),
+                                     //AVVideoWidthKey : @(videoDimensions.width),
+                                     //AVVideoHeightKey : @(videoDimensions.height),         // FIX ME FIX ME FIX ME 
+                                     AVVideoWidthKey : @(320),
+                                     AVVideoHeightKey : @(240),
                                      AVVideoCompressionPropertiesKey : compressionSettings };
     
     return [_mediaWriter setupVideoOutputDeviceWithSettings:videoSettings];
