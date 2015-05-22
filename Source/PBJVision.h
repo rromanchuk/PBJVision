@@ -173,7 +173,7 @@ static CGFloat const PBJVideoBitRate1280x750 = 5000000 * 8;
 - (BOOL)supportsVideoFrameRate:(NSInteger)videoFrameRate;
 
 // preview
-
+@property (nonatomic, readonly, getter=getCurrentResolution) CGSize currentResolution;
 @property (nonatomic, readonly) AVCaptureVideoPreviewLayer *previewLayer;
 @property (nonatomic) BOOL autoUpdatePreviewOrientation;
 @property (nonatomic) PBJCameraOrientation previewOrientation;

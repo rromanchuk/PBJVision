@@ -630,6 +630,19 @@ typedef NS_ENUM(GLint, PBJVisionUniformLocationTypes)
     return NO;
 }
 
+- (CGSize)getCurrentResolution {
+    CGSize resolution;
+    if ([_currentDevice respondsToSelector:@selector(highResolutionStillImageDimensions)]) {
+        CMVideoDimensions dimension = _currentDevice.activeFormat.highResolutionStillImageDimensions;
+        if (dimension.width > dimension.height) {
+            resolution = CGSizeMake(dimension.height, dimension.width);
+        } else {
+            resolution = CGSizeMake(dimension.width, dimension.height);
+        }
+    }
+    return resolution;
+}
+
 #pragma mark - init
 
 - (id)init
